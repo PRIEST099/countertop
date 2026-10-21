@@ -33,6 +33,10 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+page.on('console', (m) => {
+  const t = m.text();
+  if (/^\[(voice|agent|demo)\]/.test(t) || m.type() === 'error') console.log(`   · ${t.slice(0, 140)}`);
+});
 
 async function appFrame(p: Page): Promise<Frame | undefined> {
   return p.frames().find((f) => f.parentFrame()?.url().includes('/sandbox.html'));

@@ -75,10 +75,8 @@ export async function discover(mcpUrl: string): Promise<Discovery> {
 
 const redirectUri = () => `${location.origin}/oauth/callback`;
 
+/** Register a fresh client per linking attempt (servers forget clients; a simulator shouldn't care). */
 async function clientIdFor(d: Discovery): Promise<string> {
-  const key = `countertop:client:${d.asMeta.issuer}`;
-  const cached = sessionStorage.getItem(key);
-  if (cached) return cached;
   if (d.asMeta.registration_endpoint) {
     const r = await fetch(d.asMeta.registration_endpoint, {
       method: 'POST',
@@ -91,11 +89,7 @@ async function clientIdFor(d: Discovery): Promise<string> {
         response_types: ['code'],
       }),
     });
-    if (r.ok) {
-      const id = (await r.json()).client_id as string;
-      sessionStorage.setItem(key, id);
-      return id;
-    }
+    if (r.ok) return (await r.json()).client_id as string;
   }
   return prompt('This server has no dynamic client registration. Enter a client_id registered for ' + redirectUri()) ?? '';
 }

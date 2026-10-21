@@ -273,6 +273,7 @@ $('say-form').onsubmit = (e) => {
 // ---- demo mode: speak typed lines aloud, expose a small API for scripted recordings ----------------
 const DEMO = params.get('demo') === '1';
 async function utter(text: string, voiceId: string) {
+  console.debug(`[demo] utter (${voiceId}): ${text}`);
   caption(text, '');
   await voice.say(text, { voice: voiceId, kind: 'user' });
   await handleUtterance(text);

@@ -56,24 +56,35 @@ export class Voice {
     if (!text.trim()) return;
     const kind = opts.kind ?? 'alexa';
     if (kind === 'alexa') this.on.state('speaking');
+    // Upper bound on any clip: never let a missing 'ended' event hang the conversation.
+    const maxMs = 4000 + text.length * 120;
     try {
       const r = await fetch('/api/tts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, voice: opts.voice }) });
       if (!r.ok) throw new Error('tts failed');
       const file = r.headers.get('X-Audio-File') ?? undefined;
       this.audio.src = URL.createObjectURL(await r.blob());
-      await this.audio.play();
+      try {
+        await this.audio.play();
+      } catch {
+        await new Promise((res) => setTimeout(res, 250));
+        await this.audio.play();
+      }
       const ev: AudioEvent = { kind, file, text, start: Date.now() };
       audioLog.push(ev);
+      console.debug(`[voice] ${kind} speaking: ${text.slice(0, 60)}`);
       await new Promise<void>((res) => {
-        this.audio.onended = () => res();
-        this.audio.onpause = () => res();
+        const t = setTimeout(res, maxMs);
+        this.audio.onended = () => (clearTimeout(t), res());
+        this.audio.onpause = () => (clearTimeout(t), res());
       });
       ev.end = Date.now();
-    } catch {
+    } catch (e) {
+      console.debug('[voice] falling back to speechSynthesis', e);
       await new Promise<void>((res) => {
+        const t = setTimeout(res, maxMs);
         const u = new SpeechSynthesisUtterance(text);
-        u.onend = () => res();
-        u.onerror = () => res();
+        u.onend = () => (clearTimeout(t), res());
+        u.onerror = () => (clearTimeout(t), res());
         speechSynthesis.speak(u);
       });
     }

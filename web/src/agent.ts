@@ -80,6 +80,7 @@ export class Agent {
         return "Sorry, I'm having trouble right now.";
       }
       this.ev.onModel(Date.now() - t, out.stopReason);
+      console.debug(`[agent] step ${step}: ${out.stopReason}`);
       const msg: Msg = out.message;
       this.messages.push(msg);
       const uses = msg.content.filter((b) => b.toolUse).map((b) => b.toolUse!);

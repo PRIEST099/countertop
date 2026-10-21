@@ -53,7 +53,17 @@ Try it with [Once Upon Tonight](https://github.com/PRIEST099/once-upon-tonight),
 git clone https://github.com/PRIEST099/once-upon-tonight && cd once-upon-tonight && npm install && AI_MODE=mock npm start
 ```
 
-URL options: `?server=<mcp url>`, `?device=show5|show8|show15`, `?phrases=Make a story|Read my story` (suggested phrases on the home screen).
+URL options: `?server=<mcp url>`, `?device=show5|show8|show15`, `?phrases=Make a story|Read my story` (suggested phrases on the home screen), `?demo=1` (typed lines are spoken aloud).
+
+## Record a demo of your add-on (no microphone needed)
+
+1. Start Countertop with `DEMO_AUDIO_DIR=demo-out/audio npm start`.
+2. Write a scene script: `utter` lines in a chosen Polly voice, `waitIdle`, `waitAppAudio`, `appClick`, `mark`… (see the header of `scripts/record-demo.ts`).
+3. Run `npm run record-demo -- my-script.json demo-out`.
+
+You get one screen recording per scene, plus a timeline of every sound that played: the person's line, Alexa's reply, and your MCP App's own audio (apps can report playback with `app.sendLog({ logger: 'audio', data: { event: 'start' | 'stop', url, at } })`). That's enough to lay the audio back in sync in any editor; the Once Upon Tonight demo video was assembled this way in Remotion.
+
+`npm run walkthrough` drives a scripted conversation headlessly and saves screenshots, which also makes a quick UI smoke test.
 
 ## How it works
 

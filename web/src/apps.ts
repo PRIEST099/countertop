@@ -27,7 +27,7 @@ export interface AppHostCallbacks {
   onModelContext(text: string | null): void;
   onAppMessage(text: string): void;
   onToolCallFromApp(name: string, args: unknown, result: CallToolResult, ms: number): void;
-  onLog(line: string): void;
+  onLog(params: { level?: string; logger?: string; data?: unknown }): void;
 }
 
 /**
@@ -124,7 +124,7 @@ export class AppHost {
       return {};
     };
     bridge.onrequestdisplaymode = async () => ({ mode: 'fullscreen' });
-    bridge.onloggingmessage = (p) => this.cb.onLog(`[app] ${JSON.stringify(p.data)}`);
+    bridge.onloggingmessage = (p) => this.cb.onLog(p as any);
     bridge.onsizechange = async () => {}; // the device screen has a fixed size
 
     let initialized!: () => void;

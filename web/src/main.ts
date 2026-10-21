@@ -5,6 +5,7 @@ import { AppHost, DEVICES, type Device } from './apps';
 import { Agent } from './agent';
 import { Voice, type VoiceState } from './voice';
 import { evaluate, observeResult, type Observed } from './readiness';
+import { appAudioEvent, audioLog, marks } from './demo';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s = '') => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -132,7 +133,7 @@ const host = new AppHost(screen, cfg.sandboxOrigin, () => conn, () => device, {
     observeResult(observed, name, result, conn);
     if (name !== 'log_reading_progress') addConvo(`<div class="toolchip">📱 app → ${esc(name)} ${msBadge(ms)}</div>`);
   },
-  onLog: (line) => console.debug(line),
+  onLog: (p) => (p.logger === 'audio' ? appAudioEvent(p.data) : console.debug('[app]', p.data)),
 });
 
 const agent = new Agent(() => conn, host, {
@@ -264,8 +265,26 @@ $('say-form').onsubmit = (e) => {
   const input = $<HTMLInputElement>('say');
   const text = input.value;
   input.value = '';
-  handleUtterance(text);
+  if (DEMO) utter(text, params.get('userVoice') ?? 'Matthew');
+  else handleUtterance(text);
   setTimeout(() => input.focus(), 50); // keep typing here, not inside the add-on's screen
+};
+
+// ---- demo mode: speak typed lines aloud, expose a small API for scripted recordings ----------------
+const DEMO = params.get('demo') === '1';
+async function utter(text: string, voiceId: string) {
+  caption(text, '');
+  await voice.say(text, { voice: voiceId, kind: 'user' });
+  await handleUtterance(text);
+}
+(window as any).countertop = {
+  utter,
+  say: (text: string) => handleUtterance(text),
+  idle: () => !busy && !queue.length && !$('lightbar').className.includes('speaking'),
+  mark: (name: string) => marks.push({ name, at: Date.now() }),
+  timeline: () => ({ audio: audioLog, marks }),
+  link: () => linkAddOn(),
+  home: () => host.close(),
 };
 let spaceDown = false;
 window.addEventListener('keydown', (e) => {

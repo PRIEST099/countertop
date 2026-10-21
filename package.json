@@ -12,7 +12,8 @@
     "start": "vite build && tsx server/index.ts",
     "dev": "vite build && tsx watch --ignore web server/index.ts",
     "typecheck": "tsc --noEmit",
-    "walkthrough": "tsx scripts/walkthrough.ts"
+    "walkthrough": "tsx scripts/walkthrough.ts",
+    "record-demo": "tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1154.0",

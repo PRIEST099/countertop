@@ -5,6 +5,7 @@
  * AWS credentials stay on this server; the browser never sees them.
  */
 import 'dotenv/config';
+import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
@@ -45,13 +46,28 @@ host.post('/api/converse', async (req, res) => {
   }
 });
 
-/** The assistant's voice (Amazon Polly neural). */
+/**
+ * Speech (Amazon Polly neural): the assistant's voice, and, in demo mode, a voice for the
+ * person talking, so scripted demos can be recorded without a microphone.
+ * With DEMO_AUDIO_DIR set, every clip is also saved so recordings can be re-synced in post.
+ */
+const VOICES = new Set(['Joanna', 'Ruth', 'Danielle', 'Kendra', 'Salli', 'Kimberly', 'Ivy', 'Justin', 'Kevin', 'Matthew', 'Stephen', 'Gregory', 'Joey']);
+const DEMO_AUDIO_DIR = process.env.DEMO_AUDIO_DIR ? path.resolve(process.env.DEMO_AUDIO_DIR) : undefined;
+let clipCounter = 0;
 host.post('/api/tts', async (req, res) => {
   try {
+    const voice = VOICES.has(req.body?.voice) ? (req.body.voice as VoiceId) : VOICE;
     const out = await polly.send(
-      new SynthesizeSpeechCommand({ Text: String(req.body?.text ?? '').slice(0, 2500), VoiceId: VOICE, Engine: 'neural' as Engine, OutputFormat: 'mp3' }),
+      new SynthesizeSpeechCommand({ Text: String(req.body?.text ?? '').slice(0, 2500), VoiceId: voice, Engine: 'neural' as Engine, OutputFormat: 'mp3' }),
     );
-    res.type('audio/mpeg').send(Buffer.from(await out.AudioStream!.transformToByteArray()));
+    const bytes = Buffer.from(await out.AudioStream!.transformToByteArray());
+    if (DEMO_AUDIO_DIR) {
+      const name = `tts-${String(++clipCounter).padStart(3, '0')}-${voice}.mp3`;
+      fs.mkdirSync(DEMO_AUDIO_DIR, { recursive: true });
+      fs.writeFileSync(path.join(DEMO_AUDIO_DIR, name), bytes);
+      res.set('X-Audio-File', name);
+    }
+    res.type('audio/mpeg').send(bytes);
   } catch (err: any) {
     console.error('[tts]', err);
     res.status(502).json({ error: String(err?.message ?? err) });
@@ -59,7 +75,7 @@ host.post('/api/tts', async (req, res) => {
 });
 
 host.get('/api/config', (_req, res) =>
-  res.json({ modelId: MODEL_ID, voice: VOICE, sandboxOrigin: `http://127.0.0.1:${SANDBOX_PORT}`, defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp' }),
+  res.json({ modelId: MODEL_ID, voice: VOICE, demoAudio: Boolean(DEMO_AUDIO_DIR), sandboxOrigin: `http://127.0.0.1:${SANDBOX_PORT}`, defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp' }),
 );
 
 /** OAuth redirect target: hands the code back to the simulator window that opened the popup. */

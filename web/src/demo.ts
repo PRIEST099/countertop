@@ -26,8 +26,12 @@ export function setClock(hhmm?: string | null) {
   if (!hhmm) return void (clockOffset = 0);
   const m = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(hhmm).trim());
   if (!m) throw new Error(`clock must be HH:MM (24h), got "${hhmm}"`);
-  const t = new Date();
+  // The device clock only moves forward: a time earlier than "now" on the device means the next day,
+  // so a 7:10 scene after a 7:30 PM bedtime is the next morning.
+  const now = deviceNow();
+  const t = new Date(now);
   t.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  if (t.getTime() < now.getTime() - 60_000) t.setDate(t.getDate() + 1);
   clockOffset = t.getTime() - Date.now();
 }
 

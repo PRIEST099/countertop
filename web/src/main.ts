@@ -310,7 +310,11 @@ async function utter(text: string, voiceId: string) {
   mark: (name: string) => marks.push({ name, at: Date.now() }),
   timeline: () => ({ audio: audioLog, marks }),
   link: () => linkAddOn(),
-  home: () => host.close(),
+  // Going home ends the Alexa session, as on a device: the next request starts a fresh conversation.
+  home: () => {
+    host.close();
+    agent.reset();
+  },
   setClock: (hhmm?: string | null) => {
     setClock(hhmm);
     tickClock();

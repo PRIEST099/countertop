@@ -12,6 +12,7 @@
  *       { "waitIdle": true },                                   // agent finished + Alexa done speaking
  *       { "waitAppAudio": true, "timeout": 40000 },             // the add-on UI finished its current clip
  *       { "appClick": ".option:nth-child(2)" },                 // click inside the add-on's UI
+ *       { "clock": "18:45" },                                   // home-screen clock shows 6:45 and ticks on (or ?clock= in base)
  *       { "wait": 1500 }, { "mark": "choice" } ] } ] }
  */
 import fs from 'node:fs';
@@ -32,7 +33,7 @@ const browser = await puppeteer.launch({
   defaultViewport: { width: script.width ?? 1920, height: script.height ?? 1080, deviceScaleFactor: 1 },
 });
 const page = await browser.newPage();
-page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
+page.on('pageerror', (e) => console.log('  [pageerror]', (e as Error).message));
 page.on('console', (m) => {
   const t = m.text();
   if (/^\[(voice|agent|demo)\]/.test(t) || m.type() === 'error') console.log(`   · ${t.slice(0, 140)}`);
@@ -99,6 +100,7 @@ for (const scene of script.scenes) {
 }
 
 async function run(step: any) {
+  if (step.clock !== undefined) await page.evaluate((c) => (window as any).countertop.setClock(c), step.clock);
   if (step.utter) {
     console.log(`   🗣  ${step.voice ?? ''}: ${step.utter}`);
     await page.evaluate((t, v) => (window as any).countertop.utter(t, v), step.utter, step.voice ?? 'Matthew');

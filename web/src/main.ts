@@ -5,7 +5,7 @@ import { AppHost, DEVICES, type Device } from './apps';
 import { Agent } from './agent';
 import { Voice, type VoiceState } from './voice';
 import { evaluate, observeResult, type Observed } from './readiness';
-import { appAudioEvent, audioLog, marks } from './demo';
+import { appAudioEvent, audioLog, deviceNow, marks, setClock } from './demo';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s = '') => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -31,6 +31,7 @@ DEVICES.forEach((d) => deviceSelect.append(new Option(d.label, d.id, false, d.id
 function layoutDevice() {
   screen.style.width = `${device.width}px`;
   screen.style.height = `${device.height}px`;
+  screen.style.setProperty('--k', String(Math.min(device.width / 1280, device.height / 800))); // on-screen type scales with the device
   const fullW = device.width + 92;
   const fullH = device.height + 92;
   const s = Math.min(deviceWrap.clientWidth / fullW, deviceWrap.clientHeight / fullH, 1);
@@ -46,12 +47,17 @@ deviceSelect.onchange = () => {
 };
 
 function tickClock() {
-  const now = new Date();
+  const now = deviceNow();
   $('clock').textContent = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M/, '');
   $('date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 }
+try {
+  setClock(params.get('clock'));
+} catch (e) {
+  console.warn('[demo]', (e as Error).message);
+}
 tickClock();
-setInterval(tickClock, 10_000);
+setInterval(tickClock, 1000);
 
 const phrases = (params.get('phrases')?.split('|') ?? [
   "Make tonight's story — Maya lost her first tooth today and she's nervous about the dentist",
@@ -67,9 +73,15 @@ function caption(you?: string, alexa?: string) {
   const c = $('captions');
   if (you !== undefined) c.querySelector('.you')!.textContent = you ? `“${you}”` : '';
   if (alexa !== undefined) c.querySelector('.alexa')!.textContent = alexa;
-  c.classList.add('on');
+  const on = !!c.textContent?.trim();
+  c.classList.toggle('on', on);
+  screen.classList.toggle('captioned', on); // on the home screen the clock moves down to make room
+  screen.style.setProperty('--caption-h', `${c.offsetHeight}px`);
   clearTimeout(captionTimer);
-  captionTimer = window.setTimeout(() => c.classList.remove('on'), 7000);
+  captionTimer = window.setTimeout(() => {
+    c.classList.remove('on');
+    screen.classList.remove('captioned');
+  }, 7000);
 }
 function setVoiceState(s: VoiceState) {
   $('lightbar').className = `lightbar ${s === 'idle' ? '' : s}`;
@@ -286,6 +298,10 @@ async function utter(text: string, voiceId: string) {
   timeline: () => ({ audio: audioLog, marks }),
   link: () => linkAddOn(),
   home: () => host.close(),
+  setClock: (hhmm?: string | null) => {
+    setClock(hhmm);
+    tickClock();
+  },
 };
 let spaceDown = false;
 window.addEventListener('keydown', (e) => {

@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["web/src", "server"]
+  "include": ["web/src", "server", "scripts"]
 }

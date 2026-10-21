@@ -2,6 +2,7 @@ import { isToolVisibilityAppOnly } from '@modelcontextprotocol/ext-apps/app-brid
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import { callTool, type Connection } from './mcp';
 import type { AppHost } from './apps';
+import { deviceNow } from './demo';
 
 type Block = { text?: string; toolUse?: { toolUseId: string; name: string; input: any }; toolResult?: any };
 interface Msg {
@@ -32,7 +33,7 @@ export class Agent {
 
   private system() {
     const c = this.conn();
-    const now = new Date();
+    const now = deviceNow();
     return [
       `You are Alexa, the voice assistant on an Echo Show in a family's home (simulated by Countertop). It is ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.`,
       'Speak like Alexa: warm, natural, and brief — usually one or two short sentences. No markdown, lists, emoji, URLs, ids, or tool names in what you say.',

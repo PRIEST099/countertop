@@ -75,8 +75,14 @@ export async function discover(mcpUrl: string): Promise<Discovery> {
 
 const redirectUri = () => `${location.origin}/oauth/callback`;
 
-/** Register a fresh client per linking attempt (servers forget clients; a simulator shouldn't care). */
+/**
+ * Like Alexa+: a pre-registered client_id (`?client_id=`) if you give one, else Dynamic Client
+ * Registration when the server offers it (a fresh client per linking attempt: servers forget
+ * clients; a simulator shouldn't care), else ask for a client_id.
+ */
 async function clientIdFor(d: Discovery): Promise<string> {
+  const preset = new URLSearchParams(location.search).get('client_id');
+  if (preset) return preset;
   if (d.asMeta.registration_endpoint) {
     const r = await fetch(d.asMeta.registration_endpoint, {
       method: 'POST',

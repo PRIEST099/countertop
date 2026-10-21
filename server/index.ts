@@ -2,7 +2,8 @@
  * Countertop server.
  *  :5310  the simulator UI + /api/converse (Amazon Bedrock) + /api/tts (Amazon Polly) + /oauth/callback
  *  :5311  the MCP Apps sandbox proxy, on a different origin from the host as the MCP Apps spec requires.
- * AWS credentials stay on this server; the browser never sees them.
+ * AWS credentials stay on this server; the browser never sees them. Because /api/converse and /api/tts
+ * spend them, both servers listen on 127.0.0.1 only unless HOST says otherwise.
  */
 import 'dotenv/config';
 import fs from 'node:fs';
@@ -11,8 +12,11 @@ import express from 'express';
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { PollyClient, SynthesizeSpeechCommand, type VoiceId, type Engine } from '@aws-sdk/client-polly';
 
+const BIND_HOST = process.env.HOST || '127.0.0.1';
 const HOST_PORT = Number(process.env.PORT ?? 5310);
 const SANDBOX_PORT = Number(process.env.SANDBOX_PORT ?? 5311);
+const LOOPBACK = /^(localhost|127\.0\.0\.1|\[?::1\]?|[\w.-]+\.localhost)$/i;
+const loopbackOnly = LOOPBACK.test(BIND_HOST);
 const REGION = process.env.AWS_REGION ?? 'us-east-1';
 const MODEL_ID = process.env.ASSISTANT_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 const VOICE = (process.env.ASSISTANT_VOICE ?? 'Joanna') as VoiceId;
@@ -24,6 +28,8 @@ const polly = new PollyClient({ region: REGION });
 // ---- host app -------------------------------------------------------------------------------------
 const host = express();
 host.use(express.json({ limit: '4mb' }));
+// On loopback, also refuse other Host names, so a DNS-rebinding web page can't reach the AWS-backed endpoints.
+if (loopbackOnly) host.use('/api', (req, res, next) => (LOOPBACK.test(req.hostname) ? next() : res.status(403).json({ error: 'Forbidden host' })));
 
 /** One assistant turn. The browser runs the agent loop and calls MCP tools itself; this only reaches the model. */
 host.post('/api/converse', async (req, res) => {
@@ -74,9 +80,11 @@ host.post('/api/tts', async (req, res) => {
   }
 });
 
-host.get('/api/config', (_req, res) =>
-  res.json({ modelId: MODEL_ID, voice: VOICE, demoAudio: Boolean(DEMO_AUDIO_DIR), sandboxOrigin: `http://127.0.0.1:${SANDBOX_PORT}`, defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp' }),
-);
+host.get('/api/config', (req, res) => {
+  // The sandbox must be another origin; reached from another machine (HOST=0.0.0.0), use the page's host name.
+  const sandboxHost = LOOPBACK.test(req.hostname) ? '127.0.0.1' : req.hostname;
+  res.json({ modelId: MODEL_ID, voice: VOICE, demoAudio: Boolean(DEMO_AUDIO_DIR), sandboxOrigin: `http://${sandboxHost}:${SANDBOX_PORT}`, defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp' });
+});
 
 /** OAuth redirect target: hands the code back to the simulator window that opened the popup. */
 host.get('/oauth/callback', (_req, res) => {
@@ -97,7 +105,8 @@ host.get('/oauth/callback', (_req, res) => {
 });
 
 host.use(express.static(dist, { index: 'index.html' }));
-host.listen(HOST_PORT, () => console.log(`🍳 Countertop on http://localhost:${HOST_PORT}  (assistant model ${MODEL_ID}, voice ${VOICE})`));
+const shown = loopbackOnly || BIND_HOST === '0.0.0.0' || BIND_HOST === '::' ? 'localhost' : BIND_HOST;
+host.listen(HOST_PORT, BIND_HOST, () => console.log(`🍳 Countertop on http://${shown}:${HOST_PORT}  (assistant model ${MODEL_ID}, voice ${VOICE}; listening on ${BIND_HOST})`));
 
 // ---- sandbox proxy (separate origin) ---------------------------------------------------------------
 const sandbox = express();
@@ -126,4 +135,5 @@ sandbox.get('/sandbox.html', (req, res) => {
   res.sendFile(path.join(dist, 'sandbox.html'));
 });
 sandbox.use(express.static(dist, { index: false }));
-sandbox.listen(SANDBOX_PORT, '127.0.0.1', () => console.log(`🔒 MCP Apps sandbox on http://127.0.0.1:${SANDBOX_PORT}`));
+const sandboxBind = loopbackOnly ? '127.0.0.1' : BIND_HOST; // the UI points loopback visitors at 127.0.0.1
+sandbox.listen(SANDBOX_PORT, sandboxBind, () => console.log(`🔒 MCP Apps sandbox on http://${sandboxBind}:${SANDBOX_PORT}`));

@@ -50,7 +50,7 @@ export interface Connection {
   protocolVersion?: string;
   tools: Map<string, Tool>;
   resources: Map<string, Resource>;
-  htmlCache: Map<string, { html: string; meta: any }>;
+  htmlCache: Map<string, { html: string; meta: any; mimeType?: string }>;
 }
 
 export async function connect(url: string, accessToken: string | undefined, tap: (e: WireEvent) => void): Promise<Connection> {
@@ -71,7 +71,7 @@ export async function connect(url: string, accessToken: string | undefined, tap:
     serverName: info?.name ?? url,
     serverTitle: (info as any)?.title,
     instructions: client.getInstructions?.(),
-    protocolVersion: (inner as any).protocolVersion ?? (transport as any).inner?._protocolVersion,
+    protocolVersion: client.getNegotiatedProtocolVersion?.() ?? (inner as any).protocolVersion,
     tools: new Map(tools.map((t) => [t.name, t])),
     resources: new Map(resources.resources.map((r) => [r.uri, r])),
     htmlCache: new Map(),

@@ -9,6 +9,7 @@
 Alexa+ now integrates services through the **Model Context Protocol**. But the official Alexa+ add-on console, CLI and web simulator are **partner-only preview** today, so most developers, hackathon builders included, can't see their MCP server the way Alexa+ will use it. Countertop gives you that loop locally, in about a minute:
 
 - **Talk to your add-on.** Push-to-talk (hold Space) uses the browser's speech recognition. Replies are spoken with Amazon Polly. Typing works too.
+- **Captions.** What you said and what Alexa answered appear in a pill centered at the top of the screen, on the home screen and over your add-on alike. It stays clear of your app's top-left logo and of the home screen's suggestion chips (the clock steps down to make room).
 - **A real agent picks your tools.** Claude on Amazon Bedrock plays the Alexa+ reasoning layer. It sees your tools' names, descriptions and schemas, exactly as you publish them, and decides what to call. If your descriptions are vague, you'll hear it.
 - **Your MCP Apps on an Echo Show.** Echo Show 5, 8 and 15 sizes, rendered through a proper **MCP Apps host**:
   - a double-iframe sandbox on a separate origin;
@@ -17,10 +18,10 @@ Alexa+ now integrates services through the **Model Context Protocol**. But the o
   - app → server `tools/call`, `ui/update-model-context`, `ui/message`, and Alexa-style host-context fields (`deviceClass`, `maxWidth`, `maxHeight`).
 - **Account linking like Alexa+:**
   - unauthenticated probe → Protected Resource Metadata (RFC 9728) → Authorization Server Metadata (RFC 8414);
-  - Dynamic Client Registration when offered;
+  - the client: Dynamic Client Registration when the server offers it, otherwise a pre-registered `client_id` (pass `?client_id=…`, or Countertop asks for one), as Alexa+ does;
   - authorization code + **PKCE S256** + `resource` (RFC 8707) → refresh.
 - **Inspector:** every JSON-RPC message in and out, with per-request latency badges against Alexa+'s **500 ms** budget.
-- **Alexa+ readiness report:** grades your server against the published Alexa+ MCP add-on requirements while you use it:
+- **Alexa+ readiness report:** grades your server against the published Alexa+ MCP add-on requirements while you use it (the static checks also run headless: [`npm run check`](#check-from-the-terminal-or-ci)):
 
   | Check | Why it matters on Alexa+ |
   |---|---|
@@ -47,23 +48,48 @@ npm start            # http://localhost:5310  (MCP Apps sandbox on http://127.0.
 
 Open http://localhost:5310, paste your MCP server URL, and click **Link add-on**. Then hold **Space** (or click the ring) and talk.
 
+Both servers listen on **127.0.0.1 only**, because `/api/converse` and `/api/tts` spend your AWS credentials (Bedrock and Polly) for whoever can reach them; on loopback they also refuse requests whose `Host` isn't a local name, so a DNS-rebinding web page can't use them either. To expose Countertop on purpose (a container, a VM, another machine on a network you trust), set `HOST`, e.g. `HOST=0.0.0.0 npm start`, and know that anyone who can reach port 5310 can then spend your AWS credentials. (Browsers only allow the microphone and PKCE's `crypto.subtle` on `localhost` or HTTPS, so from another machine put HTTPS in front.)
+
 Try it with [Once Upon Tonight](https://github.com/PRIEST099/once-upon-tonight), an Alexa+ bedtime-story add-on. It runs without AWS in mock mode:
 
 ```bash
 git clone https://github.com/PRIEST099/once-upon-tonight && cd once-upon-tonight && npm install && AI_MODE=mock npm start
 ```
 
-URL options: `?server=<mcp url>`, `?device=show5|show8|show15`, `?phrases=Make a story|Read my story` (suggested phrases on the home screen), `?demo=1` (typed lines are spoken aloud).
+URL options:
+
+| Option | |
+|---|---|
+| `?server=<mcp url>` | The add-on to link |
+| `?device=show5\|show8\|show15` | Echo Show size |
+| `?phrases=Make a story\|Read my story` | Suggested phrases on the home screen |
+| `?clock=18:45` | Demo clock: the home screen shows this time (24h) and keeps ticking from it; Alexa's sense of time follows. Also `countertop.setClock('18:45')` from the console or a script (`setClock()` goes back to real time) |
+| `?client_id=<id>` | Link with a pre-registered OAuth client instead of Dynamic Client Registration |
+| `?demo=1` | Typed lines are spoken aloud in a second Polly voice (`&userVoice=Matthew`) |
 
 ## Record a demo of your add-on (no microphone needed)
 
 1. Start Countertop with `DEMO_AUDIO_DIR=demo-out/audio npm start`.
-2. Write a scene script: `utter` lines in a chosen Polly voice, `waitIdle`, `waitAppAudio`, `appClick`, `mark`… (see the header of `scripts/record-demo.ts`).
+2. Write a scene script: `utter` lines in a chosen Polly voice, `waitIdle`, `waitAppAudio`, `appClick`, `clock` (e.g. `{ "clock": "18:45" }` for a bedtime scene), `mark`… (see the header of `scripts/record-demo.ts`).
 3. Run `npm run record-demo -- my-script.json demo-out`.
 
 You get one screen recording per scene, plus a timeline of every sound that played: the person's line, Alexa's reply, and your MCP App's own audio (apps can report playback with `app.sendLog({ logger: 'audio', data: { event: 'start' | 'stop', url, at } })`). That's enough to lay the audio back in sync in any editor; the Once Upon Tonight demo video was assembled this way in Remotion.
 
 `npm run walkthrough` drives a scripted conversation headlessly and saves screenshots, which also makes a quick UI smoke test.
+
+## Check from the terminal (or CI)
+
+```bash
+npm run check -- http://localhost:8787/mcp                          # account-linking checks
+npm run check -- https://my-addon.example.com/mcp --token "$TOKEN"  # + MCP checks (or MCP_TOKEN=…)
+```
+
+`scripts/check.ts` runs the readiness checks that don't need a browser, with the same rules as the readiness tab, and prints a ✓ / ! / ✕ checklist:
+
+- **Account linking:** an unauthenticated request gets a bare `401` (no `WWW-Authenticate`); Protected Resource Metadata at the root path with `resource` equal to the endpoint; Authorization Server Metadata with `S256` and `refresh_token`.
+- **MCP server**, when it allows unauthenticated access or you pass a bearer token: `initialize` over Streamable HTTP (negotiated protocol version), `tools/list` (descriptions, object schemas, snake_case names), `ui://` resources (`text/html;profile=mcp-app`, CSP, content-hashed URI), and the round trip of every `initialize` / `tools/list` / `resources/list` / `resources/read` against the 500 ms budget. Without a token, a server that requires linking gets these skipped, not failed.
+
+It only makes read-only calls. The exit code is `1` if any check fails (warnings don't fail), `2` for a usage error.
 
 ## How it works
 
@@ -78,7 +104,7 @@ flowchart LR
   Agent -- "/api/tts" --> Polly["Amazon Polly"] --> Speaker["🔊"]
 ```
 
-- The **agent loop runs in the browser**, so every MCP request is visible in the inspector. The server only proxies Bedrock and Polly, so AWS credentials never reach the page.
+- The **agent loop runs in the browser**, so every MCP request is visible in the inspector. The server only proxies Bedrock and Polly, so AWS credentials never reach the page, and it listens on 127.0.0.1 unless you set `HOST`.
 - Tools with `visibility: ["app"]` are hidden from the model, as the MCP Apps spec requires.
 - The model sees tool `content` + `structuredContent`, never `_meta`, which mirrors how hosts keep view payloads out of model context.
 - What the app reports through `ui/update-model-context` is added to the system prompt, so "what's that dragon's name?" works while a page is on screen.
@@ -86,11 +112,12 @@ flowchart LR
 | File | |
 |---|---|
 | `server/index.ts` | UI server, Bedrock `Converse` proxy, Polly TTS, OAuth callback, sandbox origin with a CSP header |
-| `web/src/oauth.ts` | Discovery, DCR, PKCE popup or redirect, token exchange, refresh |
+| `web/src/oauth.ts` | Discovery, DCR or a pre-registered client, PKCE popup or redirect, token exchange, refresh |
 | `web/src/mcp.ts` | MCP client with a tapping transport (wire log + latency) |
 | `web/src/apps.ts` | MCP Apps host: sandbox, AppBridge, host context per device |
 | `web/src/agent.ts` | The Alexa+-style reasoning loop |
-| `web/src/readiness.ts` | Alexa+ readiness checks |
+| `web/src/readiness.ts` | Alexa+ readiness checks (pure functions, shared with the CLI) |
+| `scripts/check.ts` | Headless readiness CLI (`npm run check`) |
 | `web/src/voice.ts` | Push-to-talk speech recognition and spoken replies |
 
 ## Limits

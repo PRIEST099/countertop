@@ -8,7 +8,10 @@ const RESOURCE_READY = 'ui/notifications/sandbox-resource-ready';
 
 if (window.self === window.top) throw new Error('sandbox.html must be embedded by the Countertop host');
 const referrer = document.referrer;
-if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(referrer)) throw new Error(`Embedding origin not allowed: ${referrer}`);
+// A local Countertop, or the public origin the Countertop server declares when it's hosted (PUBLIC_ORIGIN).
+const publicOrigin = document.querySelector<HTMLMetaElement>('meta[name="countertop-host-origin"]')?.content;
+const allowed = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(referrer) || (!!publicOrigin && referrer.startsWith(`${publicOrigin}/`));
+if (!allowed) throw new Error(`Embedding origin not allowed: ${referrer}`);
 const HOST_ORIGIN = new URL(referrer).origin;
 const OWN_ORIGIN = location.origin;
 

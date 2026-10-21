@@ -28,6 +28,8 @@ const dist = path.resolve('web/dist');
  */
 const PUBLIC_DEMO = process.env.PUBLIC_DEMO === 'true';
 const SANDBOX_ORIGIN = process.env.SANDBOX_ORIGIN;
+/** The host page's public origin when hosted; the sandbox accepts being embedded by it (and by localhost). */
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN?.replace(/\/$/, '');
 const LIMITS = {
   conversePerVisitorPerHour: Number(process.env.CONVERSE_PER_VISITOR_HOUR ?? 40),
   conversePerDay: Number(process.env.CONVERSE_PER_DAY ?? 400),
@@ -187,7 +189,9 @@ sandbox.get('/sandbox.html', (req, res) => {
       "base-uri 'none'",
     ].join('; '),
   );
-  res.sendFile(path.join(dist, 'sandbox.html'));
+  if (!PUBLIC_ORIGIN) return res.sendFile(path.join(dist, 'sandbox.html'));
+  const html = fs.readFileSync(path.join(dist, 'sandbox.html'), 'utf8');
+  res.type('html').send(html.replace('<head>', `<head><meta name="countertop-host-origin" content="${PUBLIC_ORIGIN.replace(/"/g, '')}">`));
 });
 sandbox.use(express.static(dist, { index: false }));
 const sandboxBind = loopbackOnly ? '127.0.0.1' : BIND_HOST; // the UI points loopback visitors at 127.0.0.1

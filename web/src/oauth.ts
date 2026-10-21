@@ -126,6 +126,11 @@ export async function link(d: Discovery): Promise<Tokens> {
     JSON.stringify({ verifier, state, clientId, redirectUri: redirectUri(), tokenEndpoint: d.asMeta.token_endpoint, resource: d.prm.resource }),
   );
   const popup = window.open(url.toString(), 'countertop-link', 'width=480,height=720');
+  if (!popup) {
+    // Popup blocked: sign in in this tab instead. The callback comes back here and completeRedirect() finishes.
+    location.assign(url.toString());
+    return new Promise<Tokens>(() => {});
+  }
   const code = await new Promise<string>((resolve, reject) => {
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== location.origin || e.data?.type !== 'countertop-oauth') return;

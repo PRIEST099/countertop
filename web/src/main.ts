@@ -69,23 +69,31 @@ $('suggestions').querySelectorAll<HTMLButtonElement>('.suggestion').forEach((b) 
 
 // ---- captions & light bar --------------------------------------------------------------------------
 let captionTimer = 0;
+let captionHold = 0; // > 0 while someone is speaking (or Alexa is thinking): captions must stay up
+function scheduleCaptionHide(ms = 4500) {
+  clearTimeout(captionTimer);
+  if (captionHold > 0) return;
+  captionTimer = window.setTimeout(() => {
+    $('captions').classList.remove('on');
+    screen.classList.remove('captioned');
+  }, ms);
+}
 function caption(you?: string, alexa?: string) {
   const c = $('captions');
   if (you !== undefined) c.querySelector('.you')!.textContent = you ? `“${you}”` : '';
   if (alexa !== undefined) c.querySelector('.alexa')!.textContent = alexa;
   const on = !!c.textContent?.trim();
   c.classList.toggle('on', on);
-  screen.classList.toggle('captioned', on); // on the home screen the clock moves down to make room
-  screen.style.setProperty('--caption-h', `${c.offsetHeight}px`);
-  clearTimeout(captionTimer);
-  captionTimer = window.setTimeout(() => {
-    c.classList.remove('on');
-    screen.classList.remove('captioned');
-  }, 7000);
+  // On the home screen the clock and suggestions dim while someone talks, like an Echo Show.
+  screen.classList.toggle('captioned', on);
+  scheduleCaptionHide(7000);
 }
 function setVoiceState(s: VoiceState) {
   $('lightbar').className = `lightbar ${s === 'idle' ? '' : s}`;
   $('mic').classList.toggle('listening', s === 'listening');
+  // Keep captions up while listening, thinking or speaking; start the fade only once everyone is done.
+  if (s === 'idle') scheduleCaptionHide();
+  else clearTimeout(captionTimer);
 }
 
 // ---- side panel ------------------------------------------------------------------------------------
@@ -286,8 +294,13 @@ $('say-form').onsubmit = (e) => {
 const DEMO = params.get('demo') === '1';
 async function utter(text: string, voiceId: string) {
   console.debug(`[demo] utter (${voiceId}): ${text}`);
+  captionHold++;
   caption(text, '');
-  await voice.say(text, { voice: voiceId, kind: 'user' });
+  try {
+    await voice.say(text, { voice: voiceId, kind: 'user' });
+  } finally {
+    captionHold--;
+  }
   await handleUtterance(text);
 }
 (window as any).countertop = {

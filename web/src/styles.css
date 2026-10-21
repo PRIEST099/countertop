@@ -65,7 +65,14 @@ select { height: 36px; border-radius: 10px; background: var(--panel); border: 1p
 }
 .screen.has-app .home { visibility: hidden; }
 /* The caption pill pushes the clock down rather than covering it; the chips stay put at the bottom. */
-.screen.captioned .home { padding-top: clamp(calc(64px * var(--k)), calc(var(--caption-h, 0px) + 30px * var(--k)), calc(230px * var(--k))); }
+.home { transition: opacity 0.35s; }
+.screen.captioned:not(.has-app) .home { opacity: 0.16; }
+.screen:not(.has-app) .captions {
+  top: auto; bottom: calc(70px * var(--k)); left: 9%; right: 9%;
+  padding: calc(20px * var(--k)) calc(34px * var(--k)); border-radius: calc(30px * var(--k));
+}
+.screen:not(.has-app) .captions .you { font-size: max(14px, calc(26px * var(--k))); -webkit-line-clamp: 5; }
+.screen:not(.has-app) .captions .alexa { font-size: max(16px, calc(32px * var(--k))); }
 .clock { font-size: calc(140px * var(--k)); font-weight: 300; letter-spacing: calc(-4px * var(--k)); line-height: 1; }
 .date { font-size: calc(34px * var(--k)); color: #b9c6e4; margin-top: calc(10px * var(--k)); }
 .try { font-size: calc(26px * var(--k)); color: #c9d5f2; margin-bottom: calc(18px * var(--k)); }
@@ -93,7 +100,7 @@ select { height: 36px; border-radius: 10px; background: var(--panel); border: 1p
 .captions.on { opacity: 1; transform: none; }
 .captions .you, .captions .alexa { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .captions .you:empty, .captions .alexa:empty { display: none; }
-.captions .you { font-size: max(12px, calc(17px * var(--k))); color: #c7d2e4; line-height: 1.35; -webkit-line-clamp: 2; }
+.captions .you { font-size: max(12px, calc(17px * var(--k))); color: #c7d2e4; line-height: 1.35; -webkit-line-clamp: 4; }
 .captions .alexa { font-size: max(14px, calc(21px * var(--k))); font-weight: 650; color: #fff; line-height: 1.32; -webkit-line-clamp: 4; }
 .captions .you:not(:empty) + .alexa { margin-top: calc(4px * var(--k)); }
 .lightbar { position: absolute; left: 0; right: 0; bottom: 0; height: 12px; z-index: 6; opacity: 0; transition: opacity 0.25s; }

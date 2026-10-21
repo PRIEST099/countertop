@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Countertop · Alexa+-style simulator for MCP add-ons</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%232ee6ff' stroke-width='12'/></svg>" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo">Countertop <span>Alexa+-style simulator for MCP add-ons</span></div>
+      <div class="conn">
+        <input id="server-url" spellcheck="false" aria-label="MCP server URL" />
+        <button id="link" class="btn primary">Link add-on</button>
+        <span id="status" class="chip">Not linked</span>
+      </div>
+      <select id="device-select" aria-label="Device"></select>
+    </header>
+    <main class="layout">
+      <section class="stage">
+        <div class="device-wrap" id="device-wrap">
+          <div class="device" id="device-frame">
+            <div class="bezel">
+              <div class="camera"></div>
+              <div class="screen" id="screen">
+                <div class="home">
+                  <div>
+                    <div class="clock" id="clock">7:30</div>
+                    <div class="date" id="date"></div>
+                  </div>
+                  <div>
+                    <div class="try">Try saying…</div>
+                    <div class="suggestions" id="suggestions"></div>
+                  </div>
+                </div>
+                <div class="captions" id="captions"><div class="you"></div><div class="alexa"></div></div>
+                <div class="lightbar" id="lightbar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="mic" id="mic" aria-label="Talk to Alexa (or hold Space)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#cfe9ff" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <form class="say" id="say-form"><input id="say" placeholder="Type what you'd say to Alexa…" autocomplete="off" /><button class="btn">Send</button></form>
+          <button class="btn" id="home-btn" title="Close the add-on UI (Esc)">Home</button>
+          <span class="hint">Hold <b>Space</b> to talk</span>
+        </div>
+      </section>
+      <aside class="panel">
+        <nav class="tabs">
+          <button class="tab on" data-tab="convo">Conversation</button>
+          <button class="tab" data-tab="wire">Inspector <span class="count" id="wire-count">0</span></button>
+          <button class="tab" data-tab="ready">Alexa+ readiness</button>
+        </nav>
+        <div class="tabpane on" id="tab-convo"><div class="empty">Link an add-on, then press the ring (or hold Space) and talk.</div></div>
+        <div class="tabpane" id="tab-wire"></div>
+        <div class="tabpane" id="tab-ready"><div class="empty">Link an add-on to check it against the Alexa+ MCP requirements.</div></div>
+      </aside>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

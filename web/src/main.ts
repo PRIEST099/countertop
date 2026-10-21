@@ -196,6 +196,16 @@ async function handleUtterance(text: string) {
   caption(text, '');
   setVoiceState('thinking');
   try {
+    // Nothing linked yet: say how to link, rather than letting the model improvise tools it doesn't have.
+    if (!conn) {
+      const reply = 'First, link the add-on: press Link add-on at the top, then Allow. Then ask me again.';
+      $('link').classList.add('nudge');
+      setTimeout(() => $('link').classList.remove('nudge'), 4000);
+      addConvo(`<div class="msg alexa"><div class="who">Alexa</div><div class="bubble">${esc(reply)}</div></div>`);
+      caption(undefined, reply);
+      await voice.say(reply);
+      return;
+    }
     if (tokens && tokens.expiresAt - Date.now() < 60_000) await relink(true);
     const reply = await agent.turn(text.replace(/^alexa[, ]+/i, ''));
     if (reply) {

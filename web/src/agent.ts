@@ -87,7 +87,7 @@ export class Agent {
       this.messages.push(msg);
       const uses = msg.content.filter((b) => b.toolUse).map((b) => b.toolUse!);
       if (out.stopReason !== 'tool_use' || !uses.length) {
-        return msg.content.map((b) => b.text ?? '').join(' ').trim();
+        return spoken(msg.content.map((b) => b.text ?? '').join(' '));
       }
       const results: Block[] = [];
       for (const use of uses) {
@@ -116,4 +116,13 @@ function forModel(r: CallToolResult) {
   const text = (r.content ?? []).map((c: any) => (c.type === 'text' ? c.text : `[${c.type}]`)).join('\n');
   const facts = r.structuredContent ? `\n${JSON.stringify(r.structuredContent)}` : '';
   return (text + facts).slice(0, 4000) || '(empty result)';
+}
+
+/** What Alexa says out loud: never tool-call markup a model wrote as text instead of calling a tool. */
+export function spoken(text: string) {
+  return text
+    .replace(/<function_calls>[\s\S]*?(<\/function_calls>|$)/g, ' ')
+    .replace(/<\/?(invoke|parameter|antml:[a-z_]+)[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

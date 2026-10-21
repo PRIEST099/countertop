@@ -4,12 +4,14 @@
 
 ![Countertop running the Once Upon Tonight add-on](docs/img/countertop.jpg)
 
+**Try it live:** https://d3eqnu2zudrdt1.cloudfront.net, a hosted copy pointed at the [Once Upon Tonight](https://github.com/PRIEST099/once-upon-tonight) demo add-on. Press **Link add-on**, allow, then type or hold Space to talk. It runs with `PUBLIC_DEMO=true`, which caps model and voice usage per visitor and per day.
+
 ## Why this exists
 
 Alexa+ now integrates services through the **Model Context Protocol**. But the official Alexa+ add-on console, CLI and web simulator are **partner-only preview** today, so most developers, hackathon builders included, can't see their MCP server the way Alexa+ will use it. Countertop gives you that loop locally, in about a minute:
 
 - **Talk to your add-on.** Push-to-talk (hold Space) uses the browser's speech recognition. Replies are spoken with Amazon Polly. Typing works too.
-- **Captions.** What you said and what Alexa answered appear in a pill centered at the top of the screen, on the home screen and over your add-on alike. It stays clear of your app's top-left logo and of the home screen's suggestion chips (the clock steps down to make room).
+- **Captions.** What you said and what Alexa answered appear as captions: large at the bottom of the home screen, and as a pill at the top over your add-on, clear of its top-left logo.
 - **A real agent picks your tools.** Claude on Amazon Bedrock plays the Alexa+ reasoning layer. It sees your tools' names, descriptions and schemas, exactly as you publish them, and decides what to call. If your descriptions are vague, you'll hear it.
 - **Your MCP Apps on an Echo Show.** Echo Show 5, 8 and 15 sizes, rendered through a proper **MCP Apps host**:
   - a double-iframe sandbox on a separate origin;

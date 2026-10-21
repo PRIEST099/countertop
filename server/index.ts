@@ -21,19 +21,66 @@ const REGION = process.env.AWS_REGION ?? 'us-east-1';
 const MODEL_ID = process.env.ASSISTANT_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 const VOICE = (process.env.ASSISTANT_VOICE ?? 'Joanna') as VoiceId;
 const dist = path.resolve('web/dist');
+/**
+ * PUBLIC_DEMO=true is for hosting Countertop for anyone to try: the AWS-backed endpoints get per-visitor and
+ * daily limits (so a public copy can't run up a bill), and speech is limited to the assistant's voice.
+ * SANDBOX_ORIGIN sets the sandbox's public origin when it's served from its own domain (e.g. behind a CDN).
+ */
+const PUBLIC_DEMO = process.env.PUBLIC_DEMO === 'true';
+const SANDBOX_ORIGIN = process.env.SANDBOX_ORIGIN;
+const LIMITS = {
+  conversePerVisitorPerHour: Number(process.env.CONVERSE_PER_VISITOR_HOUR ?? 40),
+  conversePerDay: Number(process.env.CONVERSE_PER_DAY ?? 400),
+  ttsCharsPerVisitorPerHour: Number(process.env.TTS_CHARS_PER_VISITOR_HOUR ?? 4000),
+  ttsCharsPerDay: Number(process.env.TTS_CHARS_PER_DAY ?? 40000),
+};
 
 const bedrock = new BedrockRuntimeClient({ region: REGION });
 const polly = new PollyClient({ region: REGION });
 
 // ---- host app -------------------------------------------------------------------------------------
 const host = express();
-host.use(express.json({ limit: '4mb' }));
+if (PUBLIC_DEMO) host.set('trust proxy', 1); // behind a CDN: the visitor's address is the last X-Forwarded-For hop
+host.use(express.json({ limit: PUBLIC_DEMO ? '512kb' : '4mb' }));
+
+/** Usage meters for the public demo: per visitor per hour, and for everyone per UTC day. */
+const meters = new Map<string, number>();
+const meter = (key: string, add = 0) => {
+  const n = (meters.get(key) ?? 0) + add;
+  meters.set(key, n);
+  return n;
+};
+const hourKey = () => new Date().toISOString().slice(0, 13);
+const dayKey = () => new Date().toISOString().slice(0, 10);
+setInterval(() => {
+  const h = hourKey();
+  const d = dayKey();
+  for (const k of meters.keys()) if (!k.includes(h) && !k.includes(d)) meters.delete(k);
+}, 10 * 60_000).unref();
+const LIMIT_MESSAGE =
+  "The live demo has reached its usage limit for now, to keep hosting costs down. Please try again later, or run Countertop locally (it's open source).";
+/** True (and answered with 429) when this request would go over a public-demo limit. */
+function overLimit(req: express.Request, res: express.Response, kind: 'converse' | 'tts', amount: number) {
+  if (!PUBLIC_DEMO) return false;
+  const visitor = `${kind}:${req.ip}:${hourKey()}`;
+  const day = `${kind}:all:${dayKey()}`;
+  const [perVisitor, perDay] =
+    kind === 'converse' ? [LIMITS.conversePerVisitorPerHour, LIMITS.conversePerDay] : [LIMITS.ttsCharsPerVisitorPerHour, LIMITS.ttsCharsPerDay];
+  if (meter(visitor) + amount > perVisitor || meter(day) + amount > perDay) {
+    res.status(429).json({ error: 'LimitReached', message: LIMIT_MESSAGE });
+    return true;
+  }
+  meter(visitor, amount);
+  meter(day, amount);
+  return false;
+}
 // On loopback, also refuse other Host names, so a DNS-rebinding web page can't reach the AWS-backed endpoints.
 if (loopbackOnly) host.use('/api', (req, res, next) => (LOOPBACK.test(req.hostname) ? next() : res.status(403).json({ error: 'Forbidden host' })));
 
 /** One assistant turn. The browser runs the agent loop and calls MCP tools itself; this only reaches the model. */
 host.post('/api/converse', async (req, res) => {
   const { system, messages, tools } = req.body ?? {};
+  if (overLimit(req, res, 'converse', 1)) return;
   const started = Date.now();
   try {
     const out = await bedrock.send(
@@ -62,10 +109,11 @@ const DEMO_AUDIO_DIR = process.env.DEMO_AUDIO_DIR ? path.resolve(process.env.DEM
 let clipCounter = 0;
 host.post('/api/tts', async (req, res) => {
   try {
-    const voice = VOICES.has(req.body?.voice) ? (req.body.voice as VoiceId) : VOICE;
-    const out = await polly.send(
-      new SynthesizeSpeechCommand({ Text: String(req.body?.text ?? '').slice(0, 2500), VoiceId: voice, Engine: 'neural' as Engine, OutputFormat: 'mp3' }),
-    );
+    // The public demo speaks only as the assistant (visitors type or talk; their own words aren't voiced).
+    const voice = !PUBLIC_DEMO && VOICES.has(req.body?.voice) ? (req.body.voice as VoiceId) : VOICE;
+    const text = String(req.body?.text ?? '').slice(0, PUBLIC_DEMO ? 600 : 2500);
+    if (overLimit(req, res, 'tts', text.length)) return;
+    const out = await polly.send(new SynthesizeSpeechCommand({ Text: text, VoiceId: voice, Engine: 'neural' as Engine, OutputFormat: 'mp3' }));
     const bytes = Buffer.from(await out.AudioStream!.transformToByteArray());
     if (DEMO_AUDIO_DIR) {
       const name = `tts-${String(++clipCounter).padStart(3, '0')}-${voice}.mp3`;
@@ -83,7 +131,14 @@ host.post('/api/tts', async (req, res) => {
 host.get('/api/config', (req, res) => {
   // The sandbox must be another origin; reached from another machine (HOST=0.0.0.0), use the page's host name.
   const sandboxHost = LOOPBACK.test(req.hostname) ? '127.0.0.1' : req.hostname;
-  res.json({ modelId: MODEL_ID, voice: VOICE, demoAudio: Boolean(DEMO_AUDIO_DIR), sandboxOrigin: `http://${sandboxHost}:${SANDBOX_PORT}`, defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp' });
+  res.json({
+    modelId: MODEL_ID,
+    voice: VOICE,
+    demoAudio: Boolean(DEMO_AUDIO_DIR),
+    publicDemo: PUBLIC_DEMO,
+    sandboxOrigin: SANDBOX_ORIGIN ?? `http://${sandboxHost}:${SANDBOX_PORT}`,
+    defaultServer: process.env.MCP_SERVER_URL ?? 'http://localhost:8787/mcp',
+  });
 });
 
 /** OAuth redirect target: hands the code back to the simulator window that opened the popup. */

@@ -78,7 +78,8 @@ export class Agent {
       if (!r.ok) {
         this.messages.pop();
         this.ev.onError(out.message ?? 'The assistant model failed');
-        return "Sorry, I'm having trouble right now.";
+        // A hosted demo over its usage limit says so, rather than a vague apology.
+        return r.status === 429 && out.message ? out.message : "Sorry, I'm having trouble right now.";
       }
       this.ev.onModel(Date.now() - t, out.stopReason);
       console.debug(`[agent] step ${step}: ${out.stopReason}`);
